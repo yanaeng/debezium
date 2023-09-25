@@ -1,0 +1,63 @@
+version: "3"
+services:
+  postgres:
+    image: debezium/postgres
+    hostname: postgres
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      ACCEPT_EULA: Y
+      POSTGRES_USER: kafkasandbox
+      POSTGRES_PASSWORD: kafkasandboxpass
+      POSTGRES_DB: kafkasandboxdb
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+  mongo:
+    image: mongo
+    container_name: mongo
+    restart: always
+    volumes:
+      - "./data-mongo:/data/db"
+    ports:
+      - 27017:27017
+  zookeeper:
+    image: debezium/zookeeper
+    ports:
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+    container_name: zookeeper
+  kafka:
+    image: debezium/kafka
+    ports:
+      - 9092:9092
+    links:
+      - zookeeper
+    environment:
+      ZOOKEEPER_CONNECT: "zookeeper:2181"
+      ADVERTISED_HOST_NAME: "192.168.1.64" 
+    container_name: kafka-cdc
+  connect:
+    build:
+      context: debezium-jdbc
+    ports:
+      - 8083:8083
+    links:
+      - kafka
+      - postgres
+    environment:
+      BOOTSTRAP_SERVERS: "kafka:9092"
+      GROUP_ID: 1
+      CONFIG_STORAGE_TOPIC: "my_connect_configs"
+      OFFSET_STORAGE_TOPIC: "my_connect_offsets"
+      TOPIC_CREATION_ENABLE: "true"
+  kafdrop:
+    image: obsidiandynamics/kafdrop
+    restart: "no"
+    ports:
+      - "9000:9000"
+    environment:
+      KAFKA_BROKERCONNECT: "kafka:9092"
+    depends_on:
+      - kafka
